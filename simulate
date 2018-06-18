@@ -1,0 +1,123 @@
+#!/usr/bin/env perl
+
+package FrogLicking;
+use Moops;
+
+library Types
+    extends Types::Standard
+    declares Sex {
+
+    declare Sex,
+        as Str,
+        where { $_ eq 'male' or $_ eq 'female' };
+}
+
+class Frog types Types {
+    has sex => (is => 'ro', isa => Sex, required => 1);
+
+    method can_croak() {
+        return $self->sex eq 'male';
+    }
+
+    method can_cure() {
+        return $self->sex eq 'female';
+    }
+}
+
+class Person {
+    has is_poisoned => (is => 'rwp', isa => Bool, default => 1);
+
+    method lick($frog) {
+        if ($frog->can_cure) {
+            $self->_set_is_poisoned(0);
+        }
+    }
+}
+
+class Trial {
+    has lone_frog => (is => 'ro', isa => InstanceOf['FrogLicking::Frog'], required => 1);
+    has pair_frog_a => (is => 'ro', isa => InstanceOf['FrogLicking::Frog'], required => 1);
+    has pair_frog_b => (is => 'ro', isa => InstanceOf['FrogLicking::Frog'], required => 1);
+
+    method is_valid {
+        return ($self->pair_frog_a->can_croak or $self->pair_frog_b->can_croak);
+    }
+
+    method fate_after_licking_loner {
+        return $self->_fate_after_licking($self->lone_frog);
+    }
+
+    method _fate_after_licking(@frogs) {
+        my $person = FrogLicking::Person->new();
+
+        for my $frog (@frogs) {
+            $person->lick($frog);
+        }
+
+        return ($person->is_poisoned ? "death" : "life");
+    }
+
+    method fate_after_licking_pair {
+        return $self->_fate_after_licking($self->pair_frog_a, $self->pair_frog_b);
+    }
+}
+
+class Simulator {
+    use List::Util qw/shuffle/;
+
+    has iteration_count => (is => 'ro', isa => Num, required => 1);
+
+    has attempt_count => (is => 'rwp', isa => Num, default => 0);
+    has loner_lick_survival_count => (is => 'rwp', isa => Num, default => 0);
+    has pair_lick_survival_count => (is => 'rwp', isa => Num, default => 0);
+
+    method make_attempt($attempt) {
+        $self->_set_attempt_count($self->attempt_count + 1);
+
+        if ($attempt->fate_after_licking_loner eq 'life') {
+            $self->_set_loner_lick_survival_count($self->loner_lick_survival_count + 1);
+        }
+        if ($attempt->fate_after_licking_pair eq 'life') {
+            $self->_set_pair_lick_survival_count($self->pair_lick_survival_count + 1);
+        }
+    }
+
+    method determine_sex() {
+        return (shuffle ('male', 'female'))[0];
+    }
+
+    method run() {
+        for (my $i = 0; $i < $self->iteration_count; ++$i) {
+
+            my $attempt = FrogLicking::Trial->new(
+                lone_frog => FrogLicking::Frog->new(sex => $self->determine_sex()),
+                pair_frog_a => FrogLicking::Frog->new(sex => $self->determine_sex()),
+                pair_frog_b => FrogLicking::Frog->new(sex => $self->determine_sex()),
+            );
+
+            if ($attempt->is_valid) {
+                $self->make_attempt($attempt);
+            }
+        }
+    }
+
+    method generate_report() {
+        return sprintf(
+            "A total of %d attempts were made.\n\n" .
+            "Of these, we would have survived %d times (%5.2f%%) by heading for the lone frog\n" .
+            "and %d times (%5.2f%%) by heading for the pair.\n",
+            $self->attempt_count,
+            $self->loner_lick_survival_count,
+            ($self->loner_lick_survival_count / $self->attempt_count * 100),
+            $self->pair_lick_survival_count,
+            ($self->pair_lick_survival_count / $self->attempt_count * 100),
+        );
+    }
+}
+
+package main;
+
+my $sim = FrogLicking::Simulator->new(iteration_count => 1_000_000);
+
+$sim->run();
+print $sim->generate_report();
