@@ -87,8 +87,7 @@ class Simulator {
     }
 
     method run() {
-        for (my $i = 0; $i < $self->iteration_count; ++$i) {
-
+        while ($self->attempt_count < $self->iteration_count) {
             my $attempt = FrogLicking::Trial->new(
                 lone_frog => FrogLicking::Frog->new(sex => $self->determine_sex()),
                 pair_frog_a => FrogLicking::Frog->new(sex => $self->determine_sex()),
@@ -117,7 +116,7 @@ class Simulator {
 
 package main;
 
-my $sim = FrogLicking::Simulator->new(iteration_count => 1_000_000);
+my $sim = FrogLicking::Simulator->new(iteration_count => 10_000);
 
 $sim->run();
 print $sim->generate_report();
